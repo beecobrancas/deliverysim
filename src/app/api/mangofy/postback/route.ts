@@ -1,22 +1,28 @@
 // src/app/api/mangofy/postback/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-const UTMIFY_ENDPOINT = 'https://api.utmify.com.br/api-credentials/orders';
-const UTMIFY_TOKEN = 'M4qxPRbUoEhE4M97ymcGupDgEKn2c2PFmGcX'; // <- seu token da UTMify
+export const dynamic = 'force-dynamic';  // garante que a rota não vira estática
+export const runtime = 'nodejs';         // garante runtime com fetch/node
 
-// Date -> 'YYYY-MM-DD HH:MM:SS' (UTC)
+const UTMIFY_ENDPOINT = 'https://api.utmify.com.br/api-credentials/orders';
+const UTMIFY_TOKEN = 'M4qxPRbUoEhE4M97ymcGupDgEKn2c2PFmGcX'; // seu token
+
 function toUtmifyDate(d: Date | string | number | null | undefined) {
   if (!d) return null;
   const iso = new Date(d).toISOString();
   return iso.replace('T', ' ').substring(0, 19);
 }
 
-// Mapeia status Mangofy -> Utmify
 function mapStatus(s?: string) {
   if (s === 'waiting_payment') return 'waiting_payment';
   if (s === 'approved')        return 'paid';
   if (s === 'reproved' || s === 'canceled' || s === 'expired') return 'refused';
   return null;
+}
+
+// 👉 GET de teste: permite abrir no navegador e ver se a rota existe
+export async function GET() {
+  return NextResponse.json({ ok: true, route: '/api/mangofy/postback' });
 }
 
 export async function POST(req: NextRequest) {
@@ -27,10 +33,10 @@ export async function POST(req: NextRequest) {
     const utmStatus = mapStatus(body?.payment_status);
     if (!utmStatus) {
       console.warn('Status não mapeado:', body?.payment_status);
-      return NextResponse.json({ ok: true }); // 200 pra não gerar retry infinito
+      return NextResponse.json({ ok: true });
     }
 
-    // Ler UTMs da querystring (foram colocados no createPayment)
+    // Lê UTMs da querystring (você colocou no createPayment)
     const url = new URL(req.url);
     const trackingParameters = {
       src:          url.searchParams.get('src'),
@@ -41,6 +47,12 @@ export async function POST(req: NextRequest) {
       utm_content:  url.searchParams.get('utm_content'),
       utm_term:     url.searchParams.get('utm_term'),
     };
+
+    // Datas
+    const createdAtQS = url.searchParams.get('createdAt');
+    const createdAt    = toUtmifyDate(createdAtQS || body?.created_at || Date.now());
+    const approvedAt   = body?.approved_at || body?.paid_at || null;
+    const approvedDate = utmStatus === 'paid' ? toUtmifyDate(approvedAt || Date.now()) : null;
 
     // Cliente
     const customer = {
@@ -62,16 +74,13 @@ export async function POST(req: NextRequest) {
       priceInCents: i?.amount || 0,
     }));
 
-    const createdAt    = toUtmifyDate(body?.created_at || Date.now());
-    const approvedDate = utmStatus === 'paid' ? toUtmifyDate(Date.now()) : null;
     const totalInCents = body?.payment_amount || 0;
 
-    // Payload no formato da UTMify (conforme doc que você mandou)
     const utmifyPayload = {
-      orderId:       body?.payment_code,        // ID do pedido (Mangofy)
+      orderId:       body?.payment_code,
       platform:      'Mangofy',
       paymentMethod: 'pix',
-      status:        utmStatus,                 // waiting_payment | paid | refused
+      status:        utmStatus,     // waiting_payment | paid | refused
       createdAt,
       approvedDate,
       refundedAt:    null,
@@ -99,7 +108,6 @@ export async function POST(req: NextRequest) {
     if (!res.ok) {
       const errTxt = await res.text();
       console.error('UTMify ERRO:', errTxt);
-      // Mesmo com erro, retornamos 200 para a Mangofy
     } else {
       console.log('UTMify OK');
     }
