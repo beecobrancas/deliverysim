@@ -1,150 +1,153 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { User, Mail, Phone } from 'lucide-react';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { CartSummary } from './CartSummary';
+import { isValidCPF } from '@/lib/utils';
 
-export interface Step1Data {
-  name: string;
-  email: string;
-  whatsapp: string;
-}
+const formSchema = z.object({
+  name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
+  email: z.string().email("Email inválido"),
+  cpf: z.string().refine(isValidCPF, {
+    message: "CPF inválido. Por favor, verifique o número digitado.",
+  }),
+  whatsapp: z.string().min(10, "WhatsApp deve ter pelo menos 10 dígitos").regex(/^\d+$/, "WhatsApp deve conter apenas números"),
+});
+
+export type Step1Data = z.infer<typeof formSchema>;
 
 interface CheckoutStep1Props {
   onNext: (data: Step1Data) => void;
-  initialData?: Step1Data;
+  initialData?: Partial<Step1Data>;
 }
 
 export function CheckoutStep1({ onNext, initialData }: CheckoutStep1Props) {
-  const [formData, setFormData] = useState<Step1Data>({
-    name: '',
-    email: '',
-    whatsapp: '',
-    ...initialData
+  const form = useForm<Step1Data>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: initialData?.name || "",
+      email: initialData?.email || "",
+      cpf: initialData?.cpf || "",
+      whatsapp: initialData?.whatsapp || "",
+    },
   });
 
-  const handleInputChange = (field: keyof Step1Data, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const formatCPF = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    return numbers.substring(0, 11);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.name || !formData.email || !formData.whatsapp) {
-      return;
-    }
-
-    // Salvar no localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('checkout-step1', JSON.stringify(formData));
-    }
-
-    onNext(formData);
-  };
-
-  // Carregar dados do localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('checkout-step1');
-      if (saved && !initialData) {
-        setFormData(JSON.parse(saved));
-      }
-    }
-  }, [initialData]);
-
-  const formatWhatsApp = (value: string) => {
-    const cleanValue = value.replace(/\D/g, '');
-    if (cleanValue.length <= 11) {
-      return cleanValue.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
-    }
-    return cleanValue.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
-  };
-
-  const handleWhatsAppChange = (value: string) => {
-    const cleanValue = value.replace(/\D/g, '');
-    handleInputChange('whatsapp', cleanValue);
+  const formatPhone = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    return numbers.substring(0, 11);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 p-6">
+    <div className="space-y-6">
       <div className="text-center">
-        <h3 className="text-lg font-semibold text-gray-800">Dados Pessoais</h3>
-        <p className="text-sm text-gray-500">Etapa 1 de 3</p>
+        <h3 className="text-lg font-semibold">Dados Pessoais</h3>
+        <p className="text-sm text-gray-600">Etapa 1 de 4</p>
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <Label htmlFor="name" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-            <User className="w-4 h-4" />
-            Nome Completo *
-          </Label>
-          <Input
-            id="name"
-            type="text"
-            placeholder="Seu nome completo"
-            value={formData.name}
-            onChange={(e) => handleInputChange('name', e.target.value)}
-            className="mt-1"
-            required
+      <CartSummary />
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onNext)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nome Completo *</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="Digite seu nome completo" 
+                    {...field} 
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
           />
-        </div>
 
-        <div>
-          <Label htmlFor="email" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-            <Mail className="w-4 h-4" />
-            E-mail *
-          </Label>
-          <Input
-            id="email"
-            type="email"
-            placeholder="seu@email.com"
-            value={formData.email}
-            onChange={(e) => handleInputChange('email', e.target.value)}
-            className="mt-1"
-            required
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email *</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="email"
+                    placeholder="seu@email.com" 
+                    {...field} 
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
           />
-        </div>
 
-        <div>
-          <Label htmlFor="whatsapp" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-            <Phone className="w-4 h-4" />
-            WhatsApp *
-          </Label>
-          <Input
-            id="whatsapp"
-            type="tel"
-            placeholder="(11) 99999-9999"
-            value={formatWhatsApp(formData.whatsapp)}
-            onChange={(e) => handleWhatsAppChange(e.target.value)}
-            maxLength={15}
-            className="mt-1"
-            required
-          />
-        </div>
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="cpf"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>CPF *</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="Apenas números"
+                      {...field}
+                      onChange={(e) => {
+                        const formatted = formatCPF(e.target.value);
+                        field.onChange(formatted);
+                      }}
+                      maxLength={11}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="text-sm text-blue-800">
-          <p className="font-medium mb-1">Seus dados estão seguros conosco!</p>
-          <ul className="space-y-1 text-blue-700">
-            <li>• Utilizamos seus dados apenas para processar seu pedido</li>
-            <li>• Você receberá atualizações do pedido via WhatsApp</li>
-          </ul>
-        </div>
-      </div>
+            <FormField
+              control={form.control}
+              name="whatsapp"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>WhatsApp *</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="Apenas números"
+                      {...field}
+                      onChange={(e) => {
+                        const formatted = formatPhone(e.target.value);
+                        field.onChange(formatted);
+                      }}
+                      maxLength={11}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
-      <div className="flex justify-end pt-4">
-        <Button 
-          type="submit"
-          className="bg-orange-500 hover:bg-orange-600 h-12 px-8"
-          size="lg"
-          disabled={!formData.name || !formData.email || !formData.whatsapp}
-        >
-          Continuar
-        </Button>
-      </div>
-    </form>
+          <Button 
+            type="submit" 
+            className="w-full bg-orange-500 hover:bg-orange-600"
+            size="lg"
+          >
+            Continuar para Entrega
+          </Button>
+        </form>
+      </Form>
+    </div>
   );
 }

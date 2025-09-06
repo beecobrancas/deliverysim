@@ -10,7 +10,6 @@ interface CategoryContextType {
   addCategory: (name: string) => Promise<void>;
   updateCategory: (id: string, name: string) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
-  reorderCategories: (categories: Category[]) => Promise<void>;
   loading: boolean;
 }
 
@@ -25,7 +24,7 @@ export function CategoryProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase
       .from('categories')
       .select('*')
-      .order('created_at', { ascending: true }); // Ordenar por data de criação em vez de alfabética
+      .order('name', { ascending: true });
 
     if (error) {
       console.error('Erro ao buscar categorias:', error);
@@ -70,51 +69,11 @@ export function CategoryProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const reorderCategories = async (reorderedCategories: Category[]) => {
-    try {
-      // Atualizar a ordem localmente primeiro para feedback imediato
-      setCategories(reorderedCategories);
-
-      // Para simular a reordenação, vamos deletar todas e recriar na nova ordem
-      // Isso é uma solução simples já que não temos um campo de ordem na tabela
-      const categoryNames = reorderedCategories.map(cat => cat.name);
-      
-      // Deletar todas as categorias
-      const { error: deleteError } = await supabase
-        .from('categories')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Deletar todas
-
-      if (deleteError) {
-        throw deleteError;
-      }
-
-      // Recriar na nova ordem
-      const { error: insertError } = await supabase
-        .from('categories')
-        .insert(categoryNames.map(name => ({ name })));
-
-      if (insertError) {
-        throw insertError;
-      }
-
-      // Recarregar para obter os novos IDs
-      await fetchCategories();
-      toast.success('Ordem das categorias atualizada!');
-    } catch (error) {
-      console.error('Erro ao reordenar categorias:', error);
-      toast.error('Erro ao reordenar categorias.');
-      // Reverter para o estado anterior em caso de erro
-      fetchCategories();
-    }
-  };
-
   const value: CategoryContextType = {
     categories,
     addCategory,
     updateCategory,
     deleteCategory,
-    reorderCategories,
     loading,
   };
 

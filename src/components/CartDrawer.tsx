@@ -1,24 +1,24 @@
 "use client";
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import React, { useState } from 'react';
+import { Minus, Plus, Trash2, ShoppingBag } from 'lucide-react';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { useCart } from '@/contexts/CartContext';
-import { ShoppingCart, Plus, Minus, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { useSettings } from '@/contexts/SettingsContext';
+import { CheckoutModal } from './CheckoutModal';
+import * as fpixel from '@/lib/fpixel';
 
 export function CartDrawer() {
-  const { 
-    items, 
-    getTotalPrice, 
-    updateQuantity, 
-    removeItem, 
-    isCartOpen, 
-    closeCart 
-  } = useCart();
-  const router = useRouter();
+  const { items, updateQuantity, removeItem, getTotalPrice, clearCart, isCartOpen, closeCart } = useCart();
+  const { settings } = useSettings();
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -27,158 +27,143 @@ export function CartDrawer() {
     }).format(price);
   };
 
-  const handleQuantityChange = (id: string, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      removeItem(id);
-      toast.success('Item removido do carrinho');
-    } else {
-      updateQuantity(id, newQuantity);
-    }
-  };
+  const handleOpenCheckout = () => {
+    // Disparar evento do Pixel
+    fpixel.event('InitiateCheckout', {
+      value: getTotalPrice(),
+      currency: 'BRL',
+      num_items: items.reduce((sum, item) => sum + item.quantity, 0),
+      content_ids: items.map(item => item.id),
+      content_type: 'product',
+    });
 
-  const handleCheckout = () => {
-    if (items.length === 0) {
-      toast.error('Seu carrinho está vazio');
-      return;
-    }
-    
     closeCart();
-    router.push('/checkout');
+    setIsCheckoutOpen(true);
   };
 
-  const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  if (items.length === 0) {
+    return (
+      <Sheet open={isCartOpen} onOpenChange={closeCart}>
+        <SheetContent className="w-full sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>Seu Carrinho</SheetTitle>
+            <SheetDescription>
+              Seus itens selecionados aparecerão aqui
+            </SheetDescription>
+          </SheetHeader>
+          
+          <div className="flex flex-col items-center justify-center h-64 text-center">
+            <ShoppingBag className="h-16 w-16 text-gray-300 mb-4" />
+            <p className="text-gray-500 mb-2">Seu carrinho está vazio</p>
+            <p className="text-sm text-gray-400">Adicione alguns produtos deliciosos!</p>
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
 
   return (
-    <Sheet open={isCartOpen} onOpenChange={(open) => !open && closeCart()}>
-      <SheetTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="icon" 
-          className="fixed bottom-4 right-4 z-50 h-14 w-14 rounded-full shadow-lg bg-orange-500 hover:bg-orange-600 border-orange-500 text-white"
-        >
-          <ShoppingCart className="h-6 w-6" />
-          {totalItems > 0 && (
-            <Badge 
-              variant="destructive" 
-              className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center text-xs bg-red-500"
-            >
-              {totalItems}
-            </Badge>
-          )}
-        </Button>
-      </SheetTrigger>
-      
-      <SheetContent className="w-full sm:max-w-lg flex flex-col">
-        <SheetHeader className="pb-4">
-          <SheetTitle className="text-left">
-            Seu Carrinho ({totalItems} {totalItems === 1 ? 'item' : 'itens'})
-          </SheetTitle>
-        </SheetHeader>
-        
-        <div className="flex flex-col flex-1">
-          {items.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <ShoppingCart className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-500">Seu carrinho está vazio</p>
-                <Button 
-                  onClick={closeCart}
-                  variant="outline"
-                  className="mt-4"
-                >
-                  Continuar comprando
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="flex-1 overflow-y-auto">
-                <div className="space-y-3">
-                  {items.map((item, index) => (
-                    <div key={`${item.id}-${index}`} className="flex items-start space-x-3 p-3 border rounded-lg bg-white">
-                      <img 
-                        src={item.image} 
-                        alt={item.name}
-                        className="w-14 h-14 object-cover rounded-md flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm text-gray-800 line-clamp-2">{item.name}</h4>
-                        <p className="text-orange-600 font-semibold text-sm mt-1">
-                          {formatPrice(item.price)}
-                        </p>
-                        
-                        {/* Controles de quantidade */}
-                        <div className="flex items-center justify-between mt-3">
-                          <div className="flex items-center space-x-1">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7 rounded-full"
-                              onClick={() => handleQuantityChange(`${item.id}-${index}`, item.quantity - 1)}
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <span className="w-8 text-center text-sm font-medium">
-                              {item.quantity}
-                            </span>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7 rounded-full"
-                              onClick={() => handleQuantityChange(`${item.id}-${index}`, item.quantity + 1)}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          </div>
-                          
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => {
-                              removeItem(`${item.id}-${index}`);
-                              toast.success('Item removido do carrinho');
-                            }}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="border-t pt-4 mt-4 space-y-4 bg-white">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold">Total:</span>
-                  <span className="text-xl font-bold text-green-600">
-                    {formatPrice(getTotalPrice())}
-                  </span>
-                </div>
-                
-                <div className="space-y-2">
-                  <Button 
-                    onClick={handleCheckout}
-                    className="w-full bg-orange-500 hover:bg-orange-600 text-white h-12 font-semibold"
-                    size="lg"
-                  >
-                    Finalizar Pedido
-                  </Button>
+    <>
+      <Sheet open={isCartOpen} onOpenChange={closeCart}>
+        <SheetContent className="w-full sm:max-w-lg flex flex-col">
+          <SheetHeader>
+            <SheetTitle>Seu Carrinho</SheetTitle>
+            <SheetDescription>
+              {items.length} {items.length === 1 ? 'item' : 'itens'} no seu carrinho
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto py-4">
+            <div className="space-y-4">
+              {items.map((item, index) => (
+                <div key={`${item.id}-${index}`} className="flex items-start space-x-4 bg-gray-50 p-4 rounded-lg">
+                  <img
+                    src={item.image || settings.default_image}
+                    alt={item.name}
+                    className="w-16 h-16 object-cover rounded-md flex-shrink-0"
+                  />
                   
-                  <Button 
-                    onClick={closeCart}
-                    variant="outline"
-                    className="w-full h-10"
-                  >
-                    Continuar comprando
-                  </Button>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-sm">{item.name}</h3>
+                    <p className="text-sm text-gray-600">{formatPrice(item.price)}</p>
+                    
+                    <div className="flex items-center space-x-2 mt-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => updateQuantity(`${item.id}-${index}`, item.quantity - 1)}
+                      >
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      
+                      <span className="w-8 text-center text-sm font-medium">
+                        {item.quantity}
+                      </span>
+                      
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => updateQuantity(`${item.id}-${index}`, item.quantity + 1)}
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-medium text-sm">
+                      {formatPrice(item.price * item.quantity)}
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-500 hover:text-red-700 mt-1"
+                      onClick={() => removeItem(`${item.id}-${index}`)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t pt-4 space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-lg font-semibold">Total:</span>
+              <span className="text-lg font-bold text-green-600">
+                {formatPrice(getTotalPrice())}
+              </span>
+            </div>
+            
+            <div className="space-y-2">
+              <Button 
+                onClick={handleOpenCheckout}
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                size="lg"
+              >
+                Finalizar Compra
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                onClick={clearCart}
+                className="w-full text-red-600 hover:bg-red-100 hover:text-red-700"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Limpar Carrinho
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <CheckoutModal 
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+      />
+    </>
   );
 }

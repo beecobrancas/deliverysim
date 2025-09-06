@@ -5,11 +5,11 @@ import { useCategory } from '@/contexts/CategoryContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2, Save, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, X } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function CategoriesList() {
-  const { categories, addCategory, updateCategory, deleteCategory, reorderCategories, loading } = useCategory();
+  const { categories, addCategory, updateCategory, deleteCategory, loading } = useCategory();
   const [newCategoryName, setNewCategoryName] = useState('');
   const [editingCategory, setEditingCategory] = useState<{ id: string; name: string } | null>(null);
 
@@ -30,17 +30,6 @@ export function CategoriesList() {
   const handleDeleteCategory = (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir esta categoria? Isso pode afetar produtos existentes.')) {
       deleteCategory(id);
-    }
-  };
-
-  const handleMoveCategory = async (index: number, direction: 'up' | 'down') => {
-    const newCategories = [...categories];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    
-    if (targetIndex >= 0 && targetIndex < newCategories.length) {
-      // Trocar posições
-      [newCategories[index], newCategories[targetIndex]] = [newCategories[targetIndex], newCategories[index]];
-      await reorderCategories(newCategories);
     }
   };
 
@@ -74,7 +63,7 @@ export function CategoriesList() {
         </div>
 
         <div className="space-y-2">
-          {categories.map((category, index) => (
+          {categories.map((category) => (
             <div key={category.id} className="flex items-center justify-between p-2 border rounded-lg">
               {editingCategory?.id === category.id ? (
                 <Input
@@ -85,7 +74,6 @@ export function CategoriesList() {
               ) : (
                 <span>{category.name}</span>
               )}
-              
               <div className="flex gap-1">
                 {editingCategory?.id === category.id ? (
                   <>
@@ -98,27 +86,6 @@ export function CategoriesList() {
                   </>
                 ) : (
                   <>
-                    {/* Botões de reordenação */}
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 text-blue-600" 
-                      onClick={() => handleMoveCategory(index, 'up')}
-                      disabled={index === 0}
-                    >
-                      <ChevronUp className="w-4 h-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 text-blue-600" 
-                      onClick={() => handleMoveCategory(index, 'down')}
-                      disabled={index === categories.length - 1}
-                    >
-                      <ChevronDown className="w-4 h-4" />
-                    </Button>
-                    
-                    {/* Botões de edição e exclusão */}
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingCategory({ id: category.id, name: category.name })}>
                       <Edit className="w-4 h-4" />
                     </Button>
@@ -131,13 +98,6 @@ export function CategoriesList() {
             </div>
           ))}
         </div>
-
-        {categories.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            <p>Nenhuma categoria cadastrada.</p>
-            <p className="text-sm">Adicione uma categoria para começar.</p>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

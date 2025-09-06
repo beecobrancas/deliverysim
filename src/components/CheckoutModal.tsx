@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { CheckoutStep1, Step1Data } from '@/components/Checkout/CheckoutStep1';
-import { CheckoutStep2, Step2Data } from '@/components/Checkout/CheckoutStep2';
-import { CheckoutStep3 } from '@/components/Checkout/CheckoutStep3';
-import { CheckoutStep4 } from '@/components/Checkout/CheckoutStep4';
-import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useCart } from '@/contexts/CartContext';
+import { CheckoutStep1, Step1Data } from './Checkout/CheckoutStep1';
+import { CheckoutStep2, Step2Data } from './Checkout/CheckoutStep2';
+import { CheckoutStep3 } from './Checkout/CheckoutStep3';
+import { CheckoutStep4 } from './Checkout/CheckoutStep4';
+import { Progress } from '@/components/ui/progress';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -19,6 +19,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const [personalData, setPersonalData] = useState<Step1Data>({
     name: '',
     email: '',
+    cpf: '',
     whatsapp: ''
   });
   const [deliveryData, setDeliveryData] = useState<Step2Data>({
@@ -28,10 +29,8 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     complemento: '',
     bairro: '',
     cidade: '',
-    estado: '',
-    deliveryOption: 'standard'
+    estado: ''
   });
-  const [cpf, setCpf] = useState('');
   const { clearCart } = useCart();
 
   const handleNextStep1 = (data: Step1Data) => {
@@ -44,36 +43,23 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     setStep(3);
   };
 
-  const handleNextStep3 = (cpfData?: string) => {
-    if (cpfData) {
-      setCpf(cpfData);
-    }
+  const handleNextStep3 = () => {
     setStep(4);
-  };
-
-  const handleFinishCheckout = () => {
-    clearCheckoutCache();
-    clearCart();
-    onClose();
-    // Reset para step 1 quando fechar
-    setStep(1);
-    // Reset dos dados
-    setPersonalData({ name: '', email: '', whatsapp: '' });
-    setDeliveryData({
-      cep: '',
-      endereco: '',
-      numero: '',
-      complemento: '',
-      bairro: '',
-      cidade: '',
-      estado: '',
-      deliveryOption: 'standard'
-    });
-    setCpf('');
   };
 
   const handlePrevStep = () => {
     setStep(step - 1);
+  };
+
+  const handleFinish = () => {
+    // Aqui você pode adicionar lógica adicional como enviar dados para backend
+    console.log("Pedido finalizado:", { personalData, deliveryData });
+    setStep(1); // Reset para próximo uso
+    
+    // Limpar cache do checkout quando finalizar
+    clearCheckoutCache();
+    
+    onClose();
   };
 
   const clearCheckoutCache = () => {
@@ -84,11 +70,19 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     }
   };
 
-  const getProgressValue = () => {
-    if (step <= 3) {
-      return (step / 3) * 100;
+  const handleClose = () => {
+    // Limpar cache do checkout quando fechar o modal
+    clearCheckoutCache();
+    
+    // Reset apenas se não estiver no meio do pagamento
+    if (step < 4) {
+      setStep(1);
     }
-    return 100;
+    onClose();
+  };
+
+  const getProgressValue = () => {
+    return (step / 4) * 100;
   };
 
   const renderStep = () => {
@@ -113,18 +107,15 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
           <CheckoutStep3 
             onNext={handleNextStep3} 
             onBack={handlePrevStep}
-            personalData={personalData}
-            deliveryData={deliveryData}
           />
         );
       case 4:
         return (
           <CheckoutStep4 
-            onFinish={handleFinishCheckout} 
+            onFinish={handleFinish} 
             onBack={handlePrevStep}
             personalData={personalData}
             deliveryData={deliveryData}
-            cpf={cpf}
           />
         );
       default:
@@ -138,29 +129,14 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
-        <div className="p-6 border-b">
-          <h2 className="text-xl font-bold text-center text-gray-800 mb-4">
-            Finalizar Pedido
-          </h2>
-          
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Finalizar Pedido</DialogTitle>
           <div className="space-y-2">
             <Progress value={getProgressValue()} className="w-full" />
-            <div className="flex justify-between text-xs text-gray-500">
-              <span className={step >= 1 ? 'text-orange-600 font-medium' : ''}>
-                Dados Pessoais
-              </span>
-              <span className={step >= 2 ? 'text-orange-600 font-medium' : ''}>
-                Entrega
-              </span>
-              <span className={step >= 3 ? 'text-orange-600 font-medium' : ''}>
-                Pagamento
-              </span>
-            </div>
           </div>
-        </div>
-
+        </DialogHeader>
         {renderStep()}
       </DialogContent>
     </Dialog>

@@ -1,7 +1,7 @@
 "use server";
 
 const UTMIFY_API_URL = 'https://api.utmify.com.br/api-credentials/orders';
-const UTMIFY_API_TOKEN = 'M4qxPRbUoEhE4M97ymcGupDgEKn2c2PFmGcX'; // seu token
+const UTMIFY_API_TOKEN = process.env.UTMIFY_API_TOKEN || 'kBtIjt8obJBP9KRtrwZUHgrY3eJgAlG9xGaY';
 
 interface UtmifyCustomer {
   name: string;
@@ -35,14 +35,14 @@ interface UtmifyCommission {
   totalPriceInCents: number;
   gatewayFeeInCents: number;
   userCommissionInCents: number;
-  currency?: string;
+  currency?: 'BRL' | 'USD' | 'EUR' | 'GBP' | 'ARS' | 'CAD';
 }
 
 interface UtmifyOrderPayload {
   orderId: string;
   platform: string;
   paymentMethod: 'pix';
-  status: 'waiting_payment' | 'paid' | 'refused' | 'refunded';
+  status: 'waiting_payment' | 'paid' | 'refused' | 'refunded' | 'chargedback';
   createdAt: string;
   approvedDate: string | null;
   refundedAt: string | null;
@@ -53,10 +53,16 @@ interface UtmifyOrderPayload {
   isTest?: boolean;
 }
 
+/**
+ * Converte data para formato UTC exigido pela UTMify
+ */
 function formatDateToUTC(date: Date): string {
-  return date.toISOString().replace('T', ' ').substring(0, 19);
+  return date.toISOString().replace("T", " ").substring(0, 19);
 }
 
+/**
+ * Envia dados de venda para a UTMify
+ */
 export async function sendToUtmify(
   orderId: string,
   status: 'waiting_payment' | 'paid',
@@ -66,45 +72,49 @@ export async function sendToUtmify(
     cpf: string;
     phone: string;
   },
-  products: Array<{ id: string; name: string; price: number; quantity: number; }>,
+  products: Array<{
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+  }>,
   totalAmount: number,
   createdAt: Date,
   trackingParameters: UtmifyTrackingParameters,
   approvedDate?: Date
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const utmifyProducts: UtmifyProduct[] = products.map(p => ({
-      id: p.id,
-      name: p.name,
+    const utmifyProducts: UtmifyProduct[] = products.map(product => ({
+      id: product.id,
+      name: product.name,
       planId: null,
       planName: null,
-      quantity: p.quantity,
-      priceInCents: Math.round(p.price * 100),
+      quantity: product.quantity,
+      priceInCents: Math.round(product.price * 100),
     }));
 
     const customer: UtmifyCustomer = {
       name: customerData.name,
       email: customerData.email,
-      phone: customerData.phone?.replace(/\D/g, '') || null,
-      document: customerData.cpf?.replace(/\D/g, '') || null,
+      phone: customerData.phone.replace(/\D/g, '') || null,
+      document: customerData.cpf.replace(/\D/g, '') || null,
       country: 'BR',
-      ip: '127.0.0.1',
+      ip: '127.0.0.1', // TODO: em produção, capturar IP real
     };
 
     const totalPriceInCents = Math.round(totalAmount * 100);
-    const gatewayFeeInCents = 0; // sem taxa, pode ajustar
+    const gatewayFeeInCents = Math.round(totalPriceInCents * 0.02); // taxa estimada
     const userCommissionInCents = totalPriceInCents - gatewayFeeInCents;
 
     const commission: UtmifyCommission = {
       totalPriceInCents,
       gatewayFeeInCents,
       userCommissionInCents,
-      currency: 'BRL',
     };
 
     const payload: UtmifyOrderPayload = {
       orderId,
-      platform: 'Mangofy',
+      platform: 'Deliverfy', // 🔹 padronizei como Deliverfy
       paymentMethod: 'pix',
       status,
       createdAt: formatDateToUTC(createdAt),
@@ -117,6 +127,8 @@ export async function sendToUtmify(
       isTest: false,
     };
 
+    console.log("Payload enviado para UTMify:", payload);
+
     const response = await fetch(UTMIFY_API_URL, {
       method: 'POST',
       headers: {
@@ -128,14 +140,16 @@ export async function sendToUtmify(
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error("Erro no envio para UTMify - Payload:", payload);
       throw new Error(`UTMify API error: ${response.status} - ${errorText}`);
     }
 
-    console.log(`UTMify OK: ${orderId} - ${status}`);
+    console.log(`Venda enviada para UTMify: ${orderId} - Status: ${status}`);
     return { success: true };
+
   } catch (error) {
     console.error('Erro ao enviar para UTMify:', error);
-    const msg = error instanceof Error ? error.message : 'Erro desconhecido';
-    return { success: false, error: msg };
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    return { success: false, error: errorMessage };
   }
 }
